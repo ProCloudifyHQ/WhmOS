@@ -1,0 +1,167 @@
+#!/bin/bash
+# WHMOS — WHM OS Server Manager
+# github.com/ProCloudifyHQ/WhmOS
+
+WHMOS_VERSION="1.0.0"
+WHMOS_DIR="/usr/local/whmos"
+CONFIG="$WHMOS_DIR/config.conf"
+SEP="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+[ -f "$CONFIG" ] && source "$CONFIG"
+
+source "$WHMOS_DIR/modules/notify.sh"
+source "$WHMOS_DIR/modules/security.sh"
+source "$WHMOS_DIR/modules/monitor.sh"
+source "$WHMOS_DIR/modules/services.sh"
+source "$WHMOS_DIR/modules/audit.sh"
+source "$WHMOS_DIR/modules/ssl.sh"
+source "$WHMOS_DIR/modules/mail.sh"
+source "$WHMOS_DIR/modules/backup.sh"
+source "$WHMOS_DIR/modules/wordpress.sh"
+source "$WHMOS_DIR/modules/report.sh"
+
+get_stats() {
+  LOAD=$(cat /proc/loadavg | awk '{print $1}')
+  RAM_USED=$(free -h | awk '/Mem/{print $3}')
+  RAM_TOTAL=$(free -h | awk '/Mem/{print $2}')
+  DISK_PCT=$(df / | awk 'NR==2{print $5}')
+  UPTIME=$(uptime -p | sed 's/up //')
+}
+
+show_header() {
+  get_stats
+  echo ""
+  echo "  $SEP"
+  printf "  WHMOS  v%-10s %s\n" "${WHMOS_VERSION}" "${SERVER_NAME:-$(hostname)}"
+  printf "  %-25s %s\n" "WHM OS Server Manager" "$(date '+%Y-%m-%d %H:%M')"
+  echo "  $SEP"
+  printf "  CPU: %-8s RAM: %-12s DISK: %-10s UP: %s\n" \
+    "$LOAD" "${RAM_USED}/${RAM_TOTAL}" "$DISK_PCT" "$UPTIME"
+  echo "  $SEP"
+}
+
+show_menu() {
+  clear
+  show_header
+  echo ""
+  echo "  SECURITY"
+  echo "    1  Firewall & Fail2ban"
+  echo "    2  Malware & Rootkit"
+  echo ""
+  echo "  MONITORING"
+  echo "    3  CPU / RAM / Disk"
+  echo "    4  Services Health"
+  echo "    5  Bandwidth & Network"
+  echo "    6  SSL Expiry"
+  echo ""
+  echo "  MANAGEMENT"
+  echo "    7  Mail Queue"
+  echo "    8  WordPress Scanner"
+  echo "    9  Backup Status"
+  echo "   10  Login & Cron Audit"
+  echo ""
+  echo "  REPORTS"
+  echo "   11  Daily Report"
+  echo "   12  Weekly Summary"
+  echo ""
+  echo "  SETTINGS"
+  echo "   13  Configure WHMOS"
+  echo "   14  Test Telegram"
+  echo ""
+  echo "  $SEP"
+  echo -n "  Select [1-14] or q to quit: "
+}
+
+whmos_config() {
+  clear
+  echo ""
+  echo "  $SEP"
+  echo "  WHMOS  —  Configuration"
+  echo "  $SEP"
+  echo ""
+  echo -n "  Server Name     [${SERVER_NAME}]: "
+  read input; [ -n "$input" ] && SERVER_NAME="$input"
+
+  echo -n "  Server IP       [${SERVER_IP}]: "
+  read input; [ -n "$input" ] && SERVER_IP="$input"
+
+  echo -n "  Telegram Token  [${TELEGRAM_BOT_TOKEN:0:10}...]: "
+  read input; [ -n "$input" ] && TELEGRAM_BOT_TOKEN="$input"
+
+  echo -n "  Telegram Chat ID[${TELEGRAM_CHAT_ID}]: "
+  read input; [ -n "$input" ] && TELEGRAM_CHAT_ID="$input"
+
+  echo -n "  Topic ID        [${TELEGRAM_TOPIC_ID}]: "
+  read input; [ -n "$input" ] && TELEGRAM_TOPIC_ID="$input"
+
+  echo -n "  Disk Alert %    [${DISK_ALERT_THRESHOLD:-80}]: "
+  read input; [ -n "$input" ] && DISK_ALERT_THRESHOLD="$input"
+
+  echo -n "  CPU Alert %     [${CPU_ALERT_THRESHOLD:-90}]: "
+  read input; [ -n "$input" ] && CPU_ALERT_THRESHOLD="$input"
+
+  echo -n "  RAM Alert %     [${RAM_ALERT_THRESHOLD:-90}]: "
+  read input; [ -n "$input" ] && RAM_ALERT_THRESHOLD="$input"
+
+  echo -n "  Services to monitor [${SERVICES}]: "
+  read input; [ -n "$input" ] && SERVICES="$input"
+
+  cat > "$CONFIG" << CONF
+WHMOS_VERSION="${WHMOS_VERSION}"
+SERVER_NAME="${SERVER_NAME}"
+SERVER_IP="${SERVER_IP}"
+TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN}"
+TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID}"
+TELEGRAM_TOPIC_ID="${TELEGRAM_TOPIC_ID}"
+DISK_ALERT_THRESHOLD=${DISK_ALERT_THRESHOLD:-80}
+CPU_ALERT_THRESHOLD=${CPU_ALERT_THRESHOLD:-90}
+RAM_ALERT_THRESHOLD=${RAM_ALERT_THRESHOLD:-90}
+LOAD_ALERT_THRESHOLD=${LOAD_ALERT_THRESHOLD:-5}
+MAIL_QUEUE_ALERT=${MAIL_QUEUE_ALERT:-100}
+SSL_EXPIRY_ALERT_DAYS=${SSL_EXPIRY_ALERT_DAYS:-30}
+SERVICES="${SERVICES:-httpd mysql php-fpm exim dovecot}"
+BACKUP_ENABLED=true
+DAILY_REPORT_ENABLED=true
+WEEKLY_REPORT_ENABLED=true
+CONF
+
+  echo ""
+  echo "  Configuration saved."
+  echo ""
+  echo -n "  Press [ENTER] to return..."
+  read
+}
+
+# Handle non-interactive / cron calls
+case "$1" in
+  autoheal)       source "$WHMOS_DIR/modules/services.sh"; svc_autoheal_silent; exit ;;
+  daily-report)   source "$WHMOS_DIR/modules/report.sh"; report_daily_silent; exit ;;
+  weekly-report)  source "$WHMOS_DIR/modules/report.sh"; report_weekly_silent; exit ;;
+  ssl-check)      source "$WHMOS_DIR/modules/ssl.sh"; ssl_check_all_silent; exit ;;
+  mail-check)     source "$WHMOS_DIR/modules/mail.sh"; mail_check_silent; exit ;;
+  alert-check)    source "$WHMOS_DIR/modules/monitor.sh"; mon_alert_check_silent; exit ;;
+esac
+
+# Interactive menu
+while true; do
+  show_menu
+  read choice
+  case $choice in
+    1)  security_menu ;;
+    2)  security_menu ;;
+    3)  monitor_menu ;;
+    4)  services_menu ;;
+    5)  monitor_menu ;;
+    6)  ssl_menu ;;
+    7)  mail_menu ;;
+    8)  wordpress_menu ;;
+    9)  backup_menu ;;
+   10)  audit_menu ;;
+   11)  report_daily ;;
+   12)  report_weekly ;;
+   13)  whmos_config ;;
+   14)  test_telegram ;;
+    q|Q) clear; echo ""; echo "  Goodbye. Stay secure."; echo ""; exit 0 ;;
+    *)   echo "  Invalid option."; sleep 1 ;;
+  esac
+done

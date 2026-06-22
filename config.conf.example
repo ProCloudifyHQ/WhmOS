@@ -1,0 +1,29 @@
+# WHMOS Configuration
+# Copy this file to config.conf and fill in your values
+
+WHMOS_VERSION="1.0.0"
+SERVER_NAME=""
+SERVER_IP=""
+
+# Telegram
+TELEGRAM_BOT_TOKEN=""
+TELEGRAM_CHAT_ID=""
+TELEGRAM_TOPIC_ID=""
+
+# Alert Thresholds
+DISK_ALERT_THRESHOLD=80
+CPU_ALERT_THRESHOLD=90
+RAM_ALERT_THRESHOLD=90
+LOAD_ALERT_THRESHOLD=5
+MAIL_QUEUE_ALERT=100
+SSL_EXPIRY_ALERT_DAYS=30
+
+# Services to monitor (space separated)
+SERVICES="httpd mysql php-fpm exim dovecot"
+
+# Backup
+BACKUP_ENABLED=true
+
+# Reports
+DAILY_REPORT_ENABLED=true
+WEEKLY_REPORT_ENABLED=true
